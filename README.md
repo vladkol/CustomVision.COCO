@@ -8,6 +8,10 @@ This sample shows how to train Azure Custom Vision classification (compact) and 
 
 You can use COCOAPI library for converting COCO dataset to other formats, traning and validating your models with any service or Machine Learning framework from .NET. 
 
+### License: MIT 
+
+[COCO dataset Terms of Use](http://cocodataset.org/#termsofuse)
+
 ## Sample COCOCustomVisionTrainer
 **Usage** 
 ``` 
