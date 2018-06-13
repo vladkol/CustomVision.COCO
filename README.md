@@ -30,6 +30,11 @@ COCOCustomVisionTrainer [options]
   -? | -h | --help        Show help information
 ```
 
+### Example of usage 
+```
+COCOCustomVisionTrainer --fileDatasetJSON "instances_train2014.json" --images 5000 --categories "food,person,furniture,kitchen,car" --trainingKey "PUT_YOUR_TRAINING_KEY_HERE" --projectName "COCO-Classification" --train
+```
+
 ### Important totes  
 * Sample supports Detection and General (compact) classification models are supported (see ProjectTraningConfiguration.GetDefaultModel function) 
 * Azure Custom Vision and COCOCustomVisionTrainer sample only support segmentation with bounding boxes 
