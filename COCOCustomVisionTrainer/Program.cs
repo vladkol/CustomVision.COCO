@@ -35,7 +35,7 @@ namespace COCOCustomVisionTrainer
               CommandOptionType.SingleValue);;
             CommandOption projectName = commandLineApplication.Option(
               "-p | --projectName",
-              "Specify -p | --projectName if requres traning as a Detection project",
+              "Provide Custom Vision project name as -p | --projectName YOUR_PROJECT_NAME",
               CommandOptionType.SingleValue);
             CommandOption isDetectionModel = commandLineApplication.Option(
               "-d | --detection",
@@ -43,7 +43,7 @@ namespace COCOCustomVisionTrainer
               CommandOptionType.NoValue);
             CommandOption train = commandLineApplication.Option(
               "-t | --train",
-              "Specify if automatically train the project",
+              "Specify for training the project after uploading images",
               CommandOptionType.NoValue);
 
             CommandOption categories = commandLineApplication.Option(
@@ -136,8 +136,13 @@ namespace COCOCustomVisionTrainer
 
             Console.Write($"\nLoading traning images to Custom Vision Project...");
             CustomVisionProjectTraning traning = new CustomVisionProjectTraning(trainingConfig);
-            await traning.LoadWithCOCO(data, isDetectionModel);
-            Console.WriteLine("done.");
+
+            int ignoredImages = await traning.LoadWithCOCO(data, isDetectionModel);
+
+            if (ignoredImages == 0)
+                Console.WriteLine("done.");
+            else
+                Console.WriteLine($"done. Ignored {ignoredImages} image(s).");
 
             if (train)
             {

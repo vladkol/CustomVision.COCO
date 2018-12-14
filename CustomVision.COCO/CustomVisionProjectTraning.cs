@@ -28,11 +28,14 @@ namespace Microsoft.Cognitive.CustomVision.Helpers.COCO
         }
 
 
-        public async Task LoadWithCOCO(COCODatasetFactory imageSet, bool isDetectionModel)
+        public async Task<int> LoadWithCOCO(COCODatasetFactory imageSet, bool isDetectionModel)
         {
             var imageUrlBatches = new List<List<ImageUrlCreateEntry>>();
             var imageUrlEntries = new List<ImageUrlCreateEntry>();
+            var tagsInBatch = new List<Guid>();
             Dictionary<int, Guid> categoriesToTags = new Dictionary<int, Guid>();
+
+            int imagesIgnored = 0;
 
             foreach (var cat in imageSet.categoriesAndIds.Keys)
             {
@@ -49,8 +52,10 @@ namespace Microsoft.Cognitive.CustomVision.Helpers.COCO
                 }
             }
 
-            foreach (var image in imageSet.traningSet.Values)
+            for (int i=0; i < imageSet.traningSet.Values.Count; i++)
             {
+                var image = imageSet.traningSet.Values.ElementAt(i);
+
                 List<Region> regions = null;
                 IList<Guid> tags = null;
 
@@ -61,6 +66,11 @@ namespace Microsoft.Cognitive.CustomVision.Helpers.COCO
                     {
                         Region region = new Region();
                         region.TagId = categoriesToTags[bb.category_id];
+
+                        if(!tagsInBatch.Contains(region.TagId))
+                        {
+                            tagsInBatch.Add(region.TagId);
+                        }
 
                         // normalized bounding box  
                         region.Left = bb.bboxArray[0] / image.imageWidth;
@@ -86,17 +96,40 @@ namespace Microsoft.Cognitive.CustomVision.Helpers.COCO
                     {
                         continue;
                     }
+
+                    foreach (var t in tags)
+                    {
+                        if (!tagsInBatch.Contains(t))
+                        {
+                            tagsInBatch.Add(t);
+                        }
+                    }
                 }
-                
 
-                ImageUrlCreateEntry entry = 
-                    isDetectionModel ? new ImageUrlCreateEntry(image.coco_url, null, regions) : 
-                                        new ImageUrlCreateEntry(image.coco_url, tags);
-                imageUrlEntries.Add(entry);
+                // Traning batch cannot have more than 20 different tags (across all regions)
+                bool tooManyTags = false;
+                if(tagsInBatch.Count > 19)
+                {
+                    //If more than 20 tags, "rewind" one image back, we will add this image into the next batch 
+                    i--;
+                    tooManyTags = true;
+                }
 
-                if (imageUrlEntries.Count > 63) // 64 is maximim batch size for Custom Vision 
+                if (!tooManyTags) // if not too many tags with this image included, add this image 
+                {
+                    ImageUrlCreateEntry entry =
+                        isDetectionModel ? new ImageUrlCreateEntry(image.coco_url, null, regions) :
+                                            new ImageUrlCreateEntry(image.coco_url, tags);
+                    imageUrlEntries.Add(entry);
+                }
+
+                // 64 is maximim batch size for Custom Vision, 20 is maximum number of distinct tags per batch 
+                // If exceeds, add this batch to the list, and start a new batch 
+                if (imageUrlEntries.Count > 63 || tooManyTags) 
                 {
                     imageUrlBatches.Add(imageUrlEntries);
+
+                    tagsInBatch.Clear();
                     imageUrlEntries = new List<ImageUrlCreateEntry>();
                 }
             }
@@ -117,14 +150,30 @@ namespace Microsoft.Cognitive.CustomVision.Helpers.COCO
                 {
                     if (!createImagesResult.Body.IsBatchSuccessful)
                     {
-                        throw new Exception("Failed to create a trainig image batch (batch is not successful)");
+                        //Maybe it's actually OK or we submitted duplicates (OKDuplicate Status) 
+                        var notOKImages = createImagesResult.Body.Images.Where(im => (im.Status != "OKDuplicate" && im.Status != "OK" 
+                                                                                            && im.Status != "ErrorTagLimitExceed")); // Custom Vision may decline an image with too many regions, but reports it as too many tags
+                        if (notOKImages != null && notOKImages.Count() > 0)
+                        {
+                            var message = await createImagesResult.Response.Content.ReadAsStringAsync();
+                            throw new Exception($"Failed to create a trainig image batch (batch is not successful). Result:\n {message}");
+                        }
+                        else
+                        {
+                            var tooManyTags = createImagesResult.Body.Images.Where(im => (im.Status == "ErrorTagLimitExceed"));
+                            if (tooManyTags != null)
+                                imagesIgnored += tooManyTags.Count();
+                        }
                     }
                 }
                 else
                 {
-                    throw new Exception("Failed to create a trainig image batch (" + createImagesResult.Response.ReasonPhrase + ")");
+                    var message = createImagesResult.Response.Content.ReadAsStringAsync();
+                    throw new Exception($"Failed to create a trainig image batch ({createImagesResult.Response.ReasonPhrase}).");
                 }
             }
+
+            return imagesIgnored;
         }
 
         public async Task Train()
