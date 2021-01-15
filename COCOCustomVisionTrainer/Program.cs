@@ -28,6 +28,10 @@ namespace COCOCustomVisionTrainer
               "-tkey | --trainingKey", 
               "Provide your Custom Vision training key (https://www.customvision.ai/projects#/settings) as -tkey | --trainingKey YOUR_KEY",
               CommandOptionType.SingleValue);
+            CommandOption trainingEndoint = commandLineApplication.Option(
+              "-tendpoint | --trainingEndpoint",
+              "Provide your Custom Vision training base URL endpoint as -tendpoint | --trainingEndpoint ENDPOINT",
+              CommandOptionType.SingleValue);
             CommandOption filePath = commandLineApplication.Option(
               "-f | --fileDatasetJSON",
               "Provide a path or URL of a COCO Train/Val annonations JSON file as -f | --fileDatasetJSON instances_train*.json or instances_val*.json. " +
@@ -84,7 +88,7 @@ namespace COCOCustomVisionTrainer
 
                     try
                     {
-                        var t = WorkOnProject(trainingKey.Value(), projectName.Value(), filePath.Value(),
+                        var t = WorkOnProject(trainingEndoint.Value(), trainingKey.Value(), projectName.Value(), filePath.Value(),
                             categoriesList, numberOfImagesToUse,
                             isDetectionModel.HasValue(), train.HasValue());
                         t.Wait();
@@ -116,7 +120,7 @@ namespace COCOCustomVisionTrainer
             return commandLineApplication.Execute(args);
         }
 
-        static async Task WorkOnProject(string trainingKey, string projectName, string COCOInstancesFilePathOrUrl, IList<string> categories, uint numberOfImages, bool isDetectionModel, bool train)
+        static async Task WorkOnProject(string trainingEndpoint, string trainingKey, string projectName, string COCOInstancesFilePathOrUrl, IList<string> categories, uint numberOfImages, bool isDetectionModel, bool train)
         {
             Console.Write($"\nLoading, parsing and preparing {COCOInstancesFilePathOrUrl}...");
 
@@ -131,7 +135,7 @@ namespace COCOCustomVisionTrainer
             Console.WriteLine("Prepared COCO dataset with {0} categories and {1} images.\n", data.categoriesAndIds.Count, data.traningSet.Count);
 
             Console.Write($"Initializing Custom Vision Project {COCOInstancesFilePathOrUrl}...");
-            ProjectTraningConfiguration trainingConfig = await ProjectTraningConfiguration.CreateProjectAsync(trainingKey, projectName, true, isDetectionModel);
+            ProjectTraningConfiguration trainingConfig = await ProjectTraningConfiguration.CreateProjectAsync(trainingEndpoint,trainingKey, projectName, true, isDetectionModel);
             Console.WriteLine("done.");
 
             Console.Write($"\nLoading traning images to Custom Vision Project...");
