@@ -2,6 +2,7 @@
 using Microsoft.Azure.CognitiveServices.Vision.CustomVision.Training.Models;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -15,7 +16,9 @@ namespace Microsoft.Cognitive.CustomVision.Helpers
             private set; 
         }
 
-        public TrainingApi trainingApi
+        private string trainingEndpoint;
+
+        public CustomVisionTrainingClient trainingApi
         {
             get;
             private set;
@@ -40,18 +43,18 @@ namespace Microsoft.Cognitive.CustomVision.Helpers
         }
 
 
-        public static async Task<ProjectTraningConfiguration> CreateProjectAsync(string trainingKey, string projectName, bool openIfExists, bool isDetectionModel)
+        public static async Task<ProjectTraningConfiguration> CreateProjectAsync(string trainingEndpoint, string trainingKey, string projectName, bool openIfExists, bool isDetectionModel)
         {
-            ProjectTraningConfiguration result = new ProjectTraningConfiguration(trainingKey);
+            ProjectTraningConfiguration result = new ProjectTraningConfiguration(trainingEndpoint, trainingKey);
 
             await result.CreateProjectAsyncInternal(projectName, openIfExists, isDetectionModel);
 
             return result;
         }
 
-        public static async Task<ProjectTraningConfiguration> OpenProjectAsync(string trainingKey, Guid projectId)
+        public static async Task<ProjectTraningConfiguration> OpenProjectAsync(string trainingEndpoint, string trainingKey, Guid projectId)
         {
-            ProjectTraningConfiguration result = new ProjectTraningConfiguration(trainingKey);
+            ProjectTraningConfiguration result = new ProjectTraningConfiguration(trainingEndpoint, trainingKey);
 
             await result.OpenProjectAsyncInternal(projectId);
 
@@ -74,10 +77,14 @@ namespace Microsoft.Cognitive.CustomVision.Helpers
         }
 
 
-        private ProjectTraningConfiguration(string trainingKey)
+        private ProjectTraningConfiguration(string trainingEndpoint, string trainingKey)
         {
             this.trainingKey = trainingKey;
-            trainingApi = new TrainingApi() { ApiKey = this.trainingKey };
+            this.trainingEndpoint = trainingEndpoint;
+            trainingApi = new CustomVisionTrainingClient(new ApiKeyServiceClientCredentials(this.trainingKey));
+
+            if (!string.IsNullOrEmpty(trainingEndpoint))
+                trainingApi.Endpoint = trainingEndpoint;
         }
 
         private async Task CreateProjectAsyncInternal(string projectName, bool openIfExists, bool isDetectionModel)
@@ -130,14 +137,23 @@ namespace Microsoft.Cognitive.CustomVision.Helpers
         {
             if (projectDomain == null)
             {
-                var domains = await trainingApi.GetDomainsAsync();
-                if (isDetectionModel)
+                try
                 {
-                    projectDomain = domains.FirstOrDefault(d => d.Type == "ObjectDetection");                   
+                    var domains = await trainingApi.GetDomainsAsync();
+
+                    if (isDetectionModel)
+                    {
+                        projectDomain = domains.FirstOrDefault(d => d.Type == "ObjectDetection");
+                    }
+                    else
+                    {
+                        projectDomain = domains.FirstOrDefault(d => d.Type == "Classification" && d.Name.Contains("compact"));
+                    }
                 }
-                else
+                catch (Exception ex)
                 {
-                    projectDomain = domains.FirstOrDefault(d => d.Type == "Classification" && d.Name.Contains("compact"));
+                    Trace.TraceError("Expetion {0} at {1}", ex.Message, ex.StackTrace);
+                    throw;
                 }
             }
 
